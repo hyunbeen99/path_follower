@@ -16,6 +16,7 @@
 
 #define _USE_MATH_DEFINES
 #define GLOBAL_PATH_FILE "/home/hyeonbeen/path.txt"
+#define DIST_HP 0.5
 
 using namespace std;
 
@@ -30,7 +31,8 @@ private:
     double lx, ly, lz;
     double roll, pitch, yaw;
     double pre_angle_;
-    
+    double local_x, local_y; 
+
     //flag
     int path_flag = 0;
 

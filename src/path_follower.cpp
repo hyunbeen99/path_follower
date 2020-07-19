@@ -25,9 +25,8 @@ double PathFollower::calcSteer(double ggx, double ggy){
 
 	double dx = (ggx-lx);
     double dy = (ggy-ly);
-	double local_x, local_y;
+	//double local_x, local_y;
 	double dist = sqrt(dx*dx + dy*dy);
-	double dist_hp = 1; //50cm
 
 	double ab_degree = abs(atan2(ggy-ly, ggx-lx));
 	double true_angle;
@@ -83,9 +82,19 @@ double PathFollower::calcSteer(double ggx, double ggy){
 	return -steer*180/M_PI;
 }
 
-void PathFollower::follow(vector<OdomDouble> path) {
+void PathFollower::follow(vector<OdomDouble> path){
 	
-	double dist = 3.0;
+	// 1 method 
+	if (path_flag != path.size()+1){
+		double poseDist = sqrt(pow(path.at(path_flag).getX() - lx, 2) + pow(path.at(path_flag).getY() - ly, 2));
+		if (poseDist < DIST_HP){ path_flag++; }
+
+		ackerData_.drive.steering_angle = calcSteer(path.at(path_flag).getX(), path.at(path_flag).getY());
+		ackerData_.drive.speed = 2;
+	} else ackerData_.drive.speed = 0;
+
+	// 2 method
+	/*double dist = 20.0;
 	for (int i=path_flag;i<path.size();i++) {
 		double dist_l = sqrt(pow(path.at(i).getX() - lx, 2) + pow(path.at(i).getY() - ly, 2));
 		if (dist > dist_l) {
@@ -94,49 +103,10 @@ void PathFollower::follow(vector<OdomDouble> path) {
 		}
 	}
 		ackerData_.drive.steering_angle = calcSteer(path.at(path_flag).getX(), path.at(path_flag).getY());
-		ackerData_.drive.speed = 2;
-	/*
-	if (path.size() != path_flag+1) {
-		double dx = path.at(path_flag).getX()-lx;
-		double dy = path.at(path_flag).getY()-ly;
-		double local_x, local_y;
-		if (yaw >= 0 && yaw < M_PI/2){	
-			local_x = dx*cos(yaw) + dy*sin(yaw);
-			local_y = -dx*sin(yaw) + dy*cos(yaw);
-		}
-		else if (yaw >= M_PI/2 && yaw < M_PI){
-			local_x = -dx*cos(M_PI-yaw) + dy*sin(M_PI-yaw);
-			local_y = -dx*sin(M_PI-yaw) - dy*cos(M_PI-yaw);
-		}
-		else if (yaw >= -M_PI/2 && yaw < 0){
-			local_x = dx*cos(abs(yaw)) - dy*sin(abs(yaw));
-			local_y = dx*sin(abs(yaw)) + dy*cos(abs(yaw));
-		}
-		else if (yaw >= -M_PI && yaw < -M_PI/2){
-			local_x = -dx*cos(M_PI-abs(yaw)) - dy*sin(M_PI-abs(yaw));
-			local_y = dx*sin(M_PI-abs(yaw)) - dy*cos(M_PI-abs(yaw));
-		}
-
-		if (local_x<0) path_flag++;
-		
-		ackerData_.drive.steering_angle = calcSteer(path.at(path_flag).getX(), path.at(path_flag).getY());
-		ackerData_.drive.speed = 2;
-	}*/
-		/*	
-	if (path.size() != path_flag+1) {
-		double dist_gap = sqrt(pow(path.at(path_flag+1).getX() - path.at(path_flag).getX(), 2) + pow(path.at(path_flag+1).getY() - path.at(path_flag).getY(), 2));
-		double dist_l = sqrt(pow(path.at(path_flag+1).getX() - lx, 2) + pow(path.at(path_flag+1).getY() - ly, 2));
-
-		
-		if (dist_gap > dist_l) { // add flag
-			path_flag++;
-		}
-	}*/
-
-	if (path_flag == path.size()+1) ackerData_.drive.speed = 0;
-	pub_.publish(ackerData_);
-	cout << path_flag << endl;
+		ackerData_.drive.speed = 2;*/
+	
 }
+
 /*
 void printGlobalPath(vector<OdomDouble> path) {
 	cout << "global path loading..." << endl;
@@ -156,7 +126,7 @@ void printGlobalPath(vector<OdomDouble> path) {
 	cout << endl;
 }*/
 
-vector<OdomDouble> PathFollower::loadGlobalPath() {
+vector<OdomDouble> PathFollower::loadGlobalPath(){
 	vector<OdomDouble> path;
 	ifstream file;
 	file.open(GLOBAL_PATH_FILE);
