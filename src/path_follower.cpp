@@ -1,34 +1,12 @@
-#include "ros/ros.h"
-#include "ackermann_msgs/AckermannDrive.h"
-#include "ackermann_msgs/AckermannDriveStamped.h"
-#include "nav_msgs/Odometry.h"
-#include "visualization_msgs/Marker.h"
-#include "tf/tf.h"
+#include "path_follower/path_follower.h"
 
-#include "math.h"
-#include "vector"
-#include <string>
-#include <iostream>
-#include <stdlib.h>
-#include <fstream>
+void PathFollower::initSetup(){
+	sub_o_ = nh_.subscribe("/odom", 1 , &PathFollower::odomCallback, this);
+	pub_ = nh_.advertise<ackermann_msgs::AckermannDriveStamped>("/ctrl_cmd",10);
+	marker_pub_ = nh_.advertise<visualization_msgs::Marker>("visualization_marker", 10);
+}
 
-#include "path_follower/OdomDouble.h"
-
-#define _USE_MATH_DEFINES
-#define GLOBAL_PATH_FILE "/home/hyeonbeen/path.txt"
-
-using namespace std;
-
-double lx, ly, lz, yaw_d, yaw;
-double pre_angle;
-
-ros::Publisher marker_pub;
-ros::Subscriber sub_o;
-ackermann_msgs::AckermannDriveStamped ackerData_;
-
-int path_flag = 0;
-
-void odomCallback(const nav_msgs::Odometry::ConstPtr &odomsg){
+void PathFollower::odomCallback(const nav_msgs::Odometry::ConstPtr &odomsg){
 	lx = odomsg->pose.pose.position.x;
 	ly = odomsg->pose.pose.position.y;
 	lz = odomsg->pose.pose.position.z;
@@ -38,14 +16,12 @@ void odomCallback(const nav_msgs::Odometry::ConstPtr &odomsg){
 		odomsg->pose.pose.orientation.z,
 		odomsg->pose.pose.orientation.w);
 	tf::Matrix3x3 m(q);
-	double roll, pitch;
 	m.getRPY(roll, pitch, yaw);
 
-	yaw_d = yaw*180/M_PI;
-	//cout << yaw_d << endl;
+	visualize(loadGlobalPath());
 }
 
-double calcSteer(double ggx, double ggy){
+double PathFollower::calcSteer(double ggx, double ggy){
 
 	double dx = (ggx-lx);
     double dy = (ggy-ly);
@@ -58,72 +34,58 @@ double calcSteer(double ggx, double ggy){
 	double degree = atan2(dy, dx);
 
 	double steer;
-	pre_angle = ackerData_.drive.steering_angle;
+	pre_angle_ = ackerData_.drive.steering_angle;
 
-	if (dist < dist_hp){
- 	    ackerData_.drive.speed = 0;
-		ackerData_.drive.steering_angle = 0;
-		ackerData_.drive.brake = 200;
-	}
-	else if(dist < 1.5 && dist > dist_hp){
-		ackerData_.drive.speed = 1;
-		ackerData_.drive.steering_angle = pre_angle;
 
-	}
-	else{
-	//	cout << "yaw: " << yaw_d << endl;
-		if (yaw_d >= 0 && yaw_d < 90){	
-			local_x = dx*cos(yaw) + dy*sin(yaw);
-			local_y = -dx*sin(yaw) + dy*cos(yaw);
-			steer = atan(local_y/local_x);
-			if (local_x>0) steer = steer; 
-			else 
-				if (local_y>0) steer = M_PI - abs(steer);
-				else steer = -(M_PI - abs(steer));
+	if (yaw >= 0 && yaw < M_PI/2){	
+		local_x = dx*cos(yaw) + dy*sin(yaw);
+		local_y = -dx*sin(yaw) + dy*cos(yaw);
+		steer = atan(local_y/local_x);
+		if (local_x>0) steer = steer; 
+		else {
+			if (local_y>0) steer = M_PI - abs(steer);
+			else steer = -(M_PI - abs(steer));
 	//		cout << "state1" << endl;
 		}
-		else if (yaw_d >= 90 && yaw_d < 180){
-			local_x = -dx*cos(M_PI-yaw) + dy*sin(M_PI-yaw);
-			local_y = -dx*sin(M_PI-yaw) - dy*cos(M_PI-yaw);
-			steer = atan(local_y/local_x);
-			if (local_x>0) steer = steer; 
-			else 
-				if (local_y>0) steer = M_PI - abs(steer);
-				else steer = -(M_PI - abs(steer));
+	}
+	else if (yaw >= M_PI/2 && yaw < M_PI){
+		local_x = -dx*cos(M_PI-yaw) + dy*sin(M_PI-yaw);
+		local_y = -dx*sin(M_PI-yaw) - dy*cos(M_PI-yaw);
+		steer = atan(local_y/local_x);
+		if (local_x>0) steer = steer; 
+		else {
+			if (local_y>0) steer = M_PI - abs(steer);
+			else steer = -(M_PI - abs(steer));
 	//		cout << "state2" << endl;
 		}
-		else if (yaw_d >= -90 && yaw_d < 0){
-			local_x = dx*cos(abs(yaw)) - dy*sin(abs(yaw));
-			local_y = dx*sin(abs(yaw)) + dy*cos(abs(yaw));
-			steer = atan(local_y/local_x);
-			if (local_x>0) steer = steer; 
-			else 
-				if (local_y>0) steer = M_PI - abs(steer);
-				else steer = -(M_PI - abs(steer));
+	}
+	else if (yaw >= -M_PI/2 && yaw < 0){
+		local_x = dx*cos(abs(yaw)) - dy*sin(abs(yaw));
+		local_y = dx*sin(abs(yaw)) + dy*cos(abs(yaw));
+		steer = atan(local_y/local_x);
+		if (local_x>0) steer = steer; 
+		else{ 
+			if (local_y>0) steer = M_PI - abs(steer);
+			else steer = -(M_PI - abs(steer));
 	//		cout << "state3" << endl;
+			}
 		}
-		else if (yaw_d >= -180 && yaw_d < -90){
-			local_x = -dx*cos(M_PI-abs(yaw)) - dy*sin(M_PI-abs(yaw));
-			local_y = dx*sin(M_PI-abs(yaw)) - dy*cos(M_PI-abs(yaw));
-			steer = atan(local_y/local_x);
-			if (local_x>0) steer = steer; 
-			else 
-				if (local_y>0) steer = M_PI - abs(steer);
-				else steer = -(M_PI - abs(steer));
-			/*if (dy<0 && dx<0){
-				steer = -(M_PI-steer);
-				cout << "####" << endl;}
-			else if (dy>0 && dx<0) steer = M_PI-abs(steer);*/
-	//		cout << "state4" << endl;
+	else if (yaw >= -M_PI && yaw < -M_PI/2){
+		local_x = -dx*cos(M_PI-abs(yaw)) - dy*sin(M_PI-abs(yaw));
+		local_y = dx*sin(M_PI-abs(yaw)) - dy*cos(M_PI-abs(yaw));
+		steer = atan(local_y/local_x);
+		if (local_x>0) steer = steer; 
+		else{ 
+			if (local_y>0) steer = M_PI - abs(steer);
+			else steer = -(M_PI - abs(steer));
 		}	
 	}
-
 	return -steer*180/M_PI;
 }
 
-void follow(vector<OdomDouble> path) {
-	double dist = 0.5;
-
+void PathFollower::follow(vector<OdomDouble> path) {
+	
+	double dist = 3.0;
 	for (int i=path_flag;i<path.size();i++) {
 		double dist_l = sqrt(pow(path.at(i).getX() - lx, 2) + pow(path.at(i).getY() - ly, 2));
 		if (dist > dist_l) {
@@ -131,11 +93,36 @@ void follow(vector<OdomDouble> path) {
 			path_flag = i;
 		}
 	}
-
-	ackerData_.drive.steering_angle = calcSteer(path.at(path_flag+1).getX(), path.at(path_flag+1).getY());
-	ackerData_.drive.speed = 2;
-
+		ackerData_.drive.steering_angle = calcSteer(path.at(path_flag).getX(), path.at(path_flag).getY());
+		ackerData_.drive.speed = 2;
 	/*
+	if (path.size() != path_flag+1) {
+		double dx = path.at(path_flag).getX()-lx;
+		double dy = path.at(path_flag).getY()-ly;
+		double local_x, local_y;
+		if (yaw >= 0 && yaw < M_PI/2){	
+			local_x = dx*cos(yaw) + dy*sin(yaw);
+			local_y = -dx*sin(yaw) + dy*cos(yaw);
+		}
+		else if (yaw >= M_PI/2 && yaw < M_PI){
+			local_x = -dx*cos(M_PI-yaw) + dy*sin(M_PI-yaw);
+			local_y = -dx*sin(M_PI-yaw) - dy*cos(M_PI-yaw);
+		}
+		else if (yaw >= -M_PI/2 && yaw < 0){
+			local_x = dx*cos(abs(yaw)) - dy*sin(abs(yaw));
+			local_y = dx*sin(abs(yaw)) + dy*cos(abs(yaw));
+		}
+		else if (yaw >= -M_PI && yaw < -M_PI/2){
+			local_x = -dx*cos(M_PI-abs(yaw)) - dy*sin(M_PI-abs(yaw));
+			local_y = dx*sin(M_PI-abs(yaw)) - dy*cos(M_PI-abs(yaw));
+		}
+
+		if (local_x<0) path_flag++;
+		
+		ackerData_.drive.steering_angle = calcSteer(path.at(path_flag).getX(), path.at(path_flag).getY());
+		ackerData_.drive.speed = 2;
+	}*/
+		/*	
 	if (path.size() != path_flag+1) {
 		double dist_gap = sqrt(pow(path.at(path_flag+1).getX() - path.at(path_flag).getX(), 2) + pow(path.at(path_flag+1).getY() - path.at(path_flag).getY(), 2));
 		double dist_l = sqrt(pow(path.at(path_flag+1).getX() - lx, 2) + pow(path.at(path_flag+1).getY() - ly, 2));
@@ -144,10 +131,13 @@ void follow(vector<OdomDouble> path) {
 		if (dist_gap > dist_l) { // add flag
 			path_flag++;
 		}
-	}
-		*/
-}
+	}*/
 
+	if (path_flag == path.size()+1) ackerData_.drive.speed = 0;
+	pub_.publish(ackerData_);
+	cout << path_flag << endl;
+}
+/*
 void printGlobalPath(vector<OdomDouble> path) {
 	cout << "global path loading..." << endl;
 
@@ -164,9 +154,9 @@ void printGlobalPath(vector<OdomDouble> path) {
 
 	cout << "global path loaded successfully" << endl;
 	cout << endl;
-}
+}*/
 
-vector<OdomDouble> loadGlobalPath() {
+vector<OdomDouble> PathFollower::loadGlobalPath() {
 	vector<OdomDouble> path;
 	ifstream file;
 	file.open(GLOBAL_PATH_FILE);
@@ -225,7 +215,7 @@ void visualize(double x, double y, double z){
 }
 */
 
-void visualize(vector<OdomDouble> global_path){
+void PathFollower::visualize(vector<OdomDouble> global_path){
 	visualization_msgs::Marker points;
 
 	points.header.frame_id = "map";
@@ -249,29 +239,15 @@ void visualize(vector<OdomDouble> global_path){
 		points.points.push_back(p);
 	}
 
-	marker_pub.publish(points);
+	marker_pub_.publish(points);
 }
 
 
 int main(int argc, char **argv){
-
-	ros::init(argc, argv, "test_node");
-	ros::NodeHandle nh;
-    
-	ros::Publisher pub = nh.advertise<ackermann_msgs::AckermannDriveStamped>("/ctrl_cmd",10);
-	marker_pub = nh.advertise<visualization_msgs::Marker>("visualization_marker", 10);
-
-
-    ackerData_.drive.steering_angle = 0;
-    ackerData_.drive.speed = 0;
-
-	while(true) {
-		sub_o = nh.subscribe("/odom", 1 , odomCallback);
-		visualize(loadGlobalPath());
-		cout << path_flag << endl;
-		pub.publish(ackerData_);
-		ros::spinOnce();
-	}
-
+	ros::init(argc, argv, "path_follower_node");
+	
+	PathFollower pf;
+	pf.initSetup();
+	ros::spin();
 	return 0;
 }
