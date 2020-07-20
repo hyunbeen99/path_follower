@@ -85,6 +85,7 @@ double PathFollower::calcSteer(double ggx, double ggy){
 void PathFollower::follow(vector<OdomDouble> path){
 	
 	// 1 method 
+	/*
 	if (path_flag != path.size()+1){
 		double poseDist = sqrt(pow(path.at(path_flag).getX() - lx, 2) + pow(path.at(path_flag).getY() - ly, 2));
 		if (poseDist < DIST_HP){ path_flag++; }
@@ -92,9 +93,11 @@ void PathFollower::follow(vector<OdomDouble> path){
 		ackerData_.drive.steering_angle = calcSteer(path.at(path_flag).getX(), path.at(path_flag).getY());
 		ackerData_.drive.speed = 2;
 	} else ackerData_.drive.speed = 0;
+	*/
+
 
 	// 2 method
-	/*double dist = 20.0;
+	double dist = 20.0;
 	for (int i=path_flag;i<path.size();i++) {
 		double dist_l = sqrt(pow(path.at(i).getX() - lx, 2) + pow(path.at(i).getY() - ly, 2));
 		if (dist > dist_l) {
@@ -102,9 +105,9 @@ void PathFollower::follow(vector<OdomDouble> path){
 			path_flag = i;
 		}
 	}
-		ackerData_.drive.steering_angle = calcSteer(path.at(path_flag).getX(), path.at(path_flag).getY());
-		ackerData_.drive.speed = 2;*/
-	
+
+	ackerData_.drive.steering_angle = calcSteer(path.at(path_flag+1).getX(), path.at(path_flag+1).getY());
+	ackerData_.drive.speed = 2;
 }
 
 /*
