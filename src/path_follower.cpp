@@ -14,8 +14,7 @@ void PathFollower::odomCallback(const nav_msgs::Odometry::ConstPtr &odomsg){
 		odomsg->pose.pose.orientation.x,
 		odomsg->pose.pose.orientation.y,
 		odomsg->pose.pose.orientation.z,
-		odomsg->pose.pose.orientation.w);
-	tf::Matrix3x3 m(q);
+		odomsg->pose.pose.orientation.w); tf::Matrix3x3 m(q);
 	m.getRPY(roll, pitch, yaw);
 
 	visualize(loadGlobalPath());
@@ -106,8 +105,16 @@ void PathFollower::follow(vector<OdomDouble> path){
 		}
 	}
 
-	ackerData_.drive.steering_angle = calcSteer(path.at(path_flag+1).getX(), path.at(path_flag+1).getY());
-	ackerData_.drive.speed = 2;
+	if (path_flag == path.size()-1) {
+		ackerData_.drive.steering_angle = calcSteer(path.at(path_flag+1).getX(), path.at(path_flag+1).getY());
+		pre_steer_ = ackerData_.drive.steering_angle;
+		ackerData_.drive.speed = 2;
+	} else {
+		ackerData_.drive.steering_angle = pre_steer_;
+		ackerData_.drive.speed = 2;
+	}
+
+	pub_.publish(ackerData_);
 }
 
 /*
