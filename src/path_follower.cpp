@@ -2,6 +2,7 @@
 
 void PathFollower::initSetup(){
 	sub_o_ = nh_.subscribe("/odom", 1 , &PathFollower::odomCallback, this);
+	//sub_p_ = nh_.subscribe("/path", 1 , &PathFollower::followCallback, this);
 	pub_ = nh_.advertise<ackermann_msgs::AckermannDriveStamped>("/ctrl_cmd",10);
 }
 
@@ -17,6 +18,33 @@ void PathFollower::odomCallback(const nav_msgs::Odometry::ConstPtr &odomsg){
 		odomsg->pose.pose.orientation.w); tf::Matrix3x3 m(q);
 	m.getRPY(roll, pitch, yaw);
 }
+
+// follow final path
+/*
+void PathFollower::followCallback(vector<OdomDouble> path){
+	
+	// 2 method
+	double dist = 20.0;
+	for (int i=path_flag;i<path.size();i++) {
+		double dist_l = sqrt(pow(path.at(i).getX() - lx, 2) + pow(path.at(i).getY() - ly, 2));
+		if (dist > dist_l) {
+			dist = dist_l;
+			path_flag = i;
+		}
+	}
+
+	if (path_flag == path.size()-1) {
+		ackerData_.drive.steering_angle = calcSteer(path.at(path_flag+1).getX(), path.at(path_flag+1).getY());
+		pre_steer_ = ackerData_.drive.steering_angle;
+		ackerData_.drive.speed = 2;
+	} else {
+		ackerData_.drive.steering_angle = pre_steer_;
+		ackerData_.drive.speed = 2;
+	}
+
+	pub_.publish(ackerData_);
+}
+*/
 
 // calculate steering angle between current pose and goal pose
 double PathFollower::calcSteer(double ggx, double ggy){
@@ -78,31 +106,6 @@ double PathFollower::calcSteer(double ggx, double ggy){
 		}	
 	}
 	return -steer*180/M_PI;
-}
-
-// follow final path
-void PathFollower::follow(vector<OdomDouble> path){
-	
-	// 2 method
-	double dist = 20.0;
-	for (int i=path_flag;i<path.size();i++) {
-		double dist_l = sqrt(pow(path.at(i).getX() - lx, 2) + pow(path.at(i).getY() - ly, 2));
-		if (dist > dist_l) {
-			dist = dist_l;
-			path_flag = i;
-		}
-	}
-
-	if (path_flag == path.size()-1) {
-		ackerData_.drive.steering_angle = calcSteer(path.at(path_flag+1).getX(), path.at(path_flag+1).getY());
-		pre_steer_ = ackerData_.drive.steering_angle;
-		ackerData_.drive.speed = 2;
-	} else {
-		ackerData_.drive.steering_angle = pre_steer_;
-		ackerData_.drive.speed = 2;
-	}
-
-	pub_.publish(ackerData_);
 }
 
 int main(int argc, char **argv){

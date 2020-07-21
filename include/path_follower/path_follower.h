@@ -25,6 +25,7 @@ private:
 	ros::NodeHandle nh_;
     ros::Publisher pub_;
     ros::Subscriber sub_o_;
+    //ros::Subscriber sub_p_;
     
     //value
     double lx, ly, lz;
@@ -41,8 +42,9 @@ private:
                 
 public:
     void initSetup();
+
     void odomCallback(const nav_msgs::Odometry::ConstPtr &odomsg);
-    void follow(vector<OdomDouble> path);
+    //void followCallback(vector<OdomDouble> path);
 
     double calcSteer(double ggx, double ggy);
 };
