@@ -2,7 +2,6 @@
 #include "ackermann_msgs/AckermannDrive.h"
 #include "ackermann_msgs/AckermannDriveStamped.h"
 #include "nav_msgs/Odometry.h"
-#include "visualization_msgs/Marker.h"
 #include "tf/tf.h"
 
 #include "math.h"
@@ -24,7 +23,7 @@ class PathFollower{
 private:
     //node 
 	ros::NodeHandle nh_;
-    ros::Publisher pub_, marker_pub_;
+    ros::Publisher pub_;
     ros::Subscriber sub_o_;
     
     //value
@@ -44,9 +43,6 @@ public:
     void initSetup();
     void odomCallback(const nav_msgs::Odometry::ConstPtr &odomsg);
     void follow(vector<OdomDouble> path);
-    void visualize(vector<OdomDouble> global_path);
 
     double calcSteer(double ggx, double ggy);
-    
-    vector<OdomDouble> loadGlobalPath();
 };
