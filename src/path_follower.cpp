@@ -2,9 +2,14 @@
 
 void PathFollower::initSetup(){
 	sub_o_ = nh_.subscribe("/odom", 1 , &PathFollower::odomCallback, this);
-	//sub_p_ = nh_.subscribe("/path", 1 , &PathFollower::followCallback, this);
+//	sub_p_ = nh_.subscribe("/path", 1 , &PathFollower::followCallback, this);
 	pub_ = nh_.advertise<ackermann_msgs::AckermannDriveStamped>("/ctrl_cmd",10);
+    marker_pub_ = nh_.advertise<visualization_msgs::Marker>("/visualization_marker", 10);
+
+	nh_.setParam("/isGlobalPathChanged", false);
+	loadGlobalPath();
 }
+
 
 // get current pose
 void PathFollower::odomCallback(const nav_msgs::Odometry::ConstPtr &odomsg){
@@ -15,26 +20,33 @@ void PathFollower::odomCallback(const nav_msgs::Odometry::ConstPtr &odomsg){
 		odomsg->pose.pose.orientation.x,
 		odomsg->pose.pose.orientation.y,
 		odomsg->pose.pose.orientation.z,
-		odomsg->pose.pose.orientation.w); tf::Matrix3x3 m(q);
+		odomsg->pose.pose.orientation.w); 
+	tf::Matrix3x3 m(q);
 	m.getRPY(roll, pitch, yaw);
 }
 
 // follow final path
-/*
-void PathFollower::followCallback(vector<OdomDouble> path){
+void PathFollower::follow(){
+	bool isChanged;
+	nh_.getParam("/isGlobalPathChanged", isChanged);
+
+	if (isChanged) {
+		loadGlobalPath();
+		nh_.setParam("/isGlobalPathChanged", false);
+	}
 	
 	// 2 method
-	double dist = 20.0;
-	for (int i=path_flag;i<path.size();i++) {
-		double dist_l = sqrt(pow(path.at(i).getX() - lx, 2) + pow(path.at(i).getY() - ly, 2));
+	double dist = 100.0;
+	for (int i=path_flag;i<global_path_.size();i++) {
+		double dist_l = sqrt(pow(global_path_.at(i).getX() - lx, 2) + pow(global_path_.at(i).getY() - ly, 2));
 		if (dist > dist_l) {
 			dist = dist_l;
 			path_flag = i;
 		}
 	}
 
-	if (path_flag == path.size()-1) {
-		ackerData_.drive.steering_angle = calcSteer(path.at(path_flag+1).getX(), path.at(path_flag+1).getY());
+	if (path_flag == global_path_.size()-1) {
+		ackerData_.drive.steering_angle = calcSteer(global_path_.at(path_flag+1).getX(), global_path_.at(path_flag+1).getY());
 		pre_steer_ = ackerData_.drive.steering_angle;
 		ackerData_.drive.speed = 2;
 	} else {
@@ -42,9 +54,74 @@ void PathFollower::followCallback(vector<OdomDouble> path){
 		ackerData_.drive.speed = 2;
 	}
 
+	visualize(global_path_);
 	pub_.publish(ackerData_);
 }
-*/
+
+void PathFollower::loadGlobalPath() {
+
+	bool isChanged;
+	nh_.getParam("/isGlobalPathChanged", isChanged);
+
+	ifstream file;
+	global_path_.clear();
+
+	if (!isChanged) { // use initial global path
+		file.open(GLOBAL_PATH_FILE);
+	} else { // obstacle detected from planner -> use changed global path
+		file.open(NEW_GLOBAL_PATH_FILE);
+	}
+	
+	if (file.is_open()) {
+
+		string line;
+
+		while (getline(file, line)) {
+
+			istringstream ss(line);
+
+			vector<string> odomString;
+			string stringBuffer;
+			while (getline(ss, stringBuffer, ',')) {
+				odomString.push_back(stringBuffer);
+			}
+
+			OdomDouble odomDouble(stod(odomString.at(0)), stod(odomString.at(1)), stod(odomString.at(2)));
+			global_path_.push_back(odomDouble);
+		}
+
+		file.close();
+	}
+}
+
+void PathFollower::visualize(vector<OdomDouble> path){
+	visualization_msgs::Marker points;
+
+	points.header.frame_id = "map";
+	points.header.stamp = ros::Time::now();
+	points.ns = "points_and_lines";
+	points.action = visualization_msgs::Marker::ADD;
+	points.pose.orientation.w = 1.0;
+	points.id = 0;
+	points.type = visualization_msgs::Marker::POINTS;
+	points.scale.x = 0.1; 
+	points.scale.y = 0.1;
+	points.color.a = 1.0;
+	points.color.r = 1.0f;
+
+	geometry_msgs::Point p;
+
+	for (auto point : path) {
+		p.x = point.getX();
+		p.y = point.getY();
+		p.z = point.getZ();
+		points.points.push_back(p);
+	}
+
+	marker_pub_.publish(points);
+}
+
+
 
 // calculate steering angle between current pose and goal pose
 double PathFollower::calcSteer(double ggx, double ggy){
@@ -112,7 +189,12 @@ int main(int argc, char **argv){
 	ros::init(argc, argv, "path_follower_node");
 	
 	PathFollower pf;
-	pf.initSetup();
-	ros::spin();
+
+	// warp
+	while(ros::ok()) {
+		pf.follow();
+		ros::spinOnce();
+	}
+
 	return 0;
 }
