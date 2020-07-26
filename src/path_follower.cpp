@@ -35,7 +35,7 @@ void PathFollower::follow(){
 		nh_.setParam("/isGlobalPathChanged", false);
 	}
 	
-	// 2 method
+	// find closest point in global path
 	double dist = 100.0;
 	for (int i=path_flag;i<global_path_.size();i++) {
 		double dist_l = sqrt(pow(global_path_.at(i).getX() - lx, 2) + pow(global_path_.at(i).getY() - ly, 2));
@@ -45,11 +45,23 @@ void PathFollower::follow(){
 		}
 	}
 
-	if (path_flag == global_path_.size()-1) {
+
+	cout << "0.x -> " << global_path_.at(0).getX() << endl;
+	cout << "0.y -> " << global_path_.at(0).getY() << endl;
+	cout << "path_flag point.x -> " << global_path_.at(path_flag).getX() << endl;
+	cout << "path_flag point.y -> " << global_path_.at(path_flag).getY() << endl;
+	cout << "last.x -> " << global_path_.back().getX() << endl;
+	cout << "last.y -> " << global_path_.back().getY() << endl;
+	cout << endl;
+
+	cout << "path flag: " << path_flag << endl;
+	cout << "size : " << global_path_.size() << endl;
+
+	if (path_flag != global_path_.size()-1) {
 		ackerData_.drive.steering_angle = calcSteer(global_path_.at(path_flag+1).getX(), global_path_.at(path_flag+1).getY());
 		pre_steer_ = ackerData_.drive.steering_angle;
 		ackerData_.drive.speed = 2;
-	} else {
+	} else { // the last index
 		ackerData_.drive.steering_angle = pre_steer_;
 		ackerData_.drive.speed = 2;
 	}
@@ -59,38 +71,41 @@ void PathFollower::follow(){
 }
 
 void PathFollower::loadGlobalPath() {
+	if(obs_detect_flag_ < 1) {
+		bool isChanged;
+		nh_.getParam("/isGlobalPathChanged", isChanged);
 
-	bool isChanged;
-	nh_.getParam("/isGlobalPathChanged", isChanged);
+		ifstream file;
+		global_path_.clear();
 
-	ifstream file;
-	global_path_.clear();
+		if (!isChanged) { // use initial global path
+			file.open(GLOBAL_PATH_FILE);
+		} else { // obstacle detected from planner -> use changed global path
+			cout << "path changed!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << endl;
+			file.open(NEW_GLOBAL_PATH_FILE);
+			obs_detect_flag_++;
+		}
+		
+		if (file.is_open()) {
 
-	if (!isChanged) { // use initial global path
-		file.open(GLOBAL_PATH_FILE);
-	} else { // obstacle detected from planner -> use changed global path
-		file.open(NEW_GLOBAL_PATH_FILE);
-	}
-	
-	if (file.is_open()) {
+			string line;
 
-		string line;
+			while (getline(file, line)) {
 
-		while (getline(file, line)) {
+				istringstream ss(line);
 
-			istringstream ss(line);
+				vector<string> odomString;
+				string stringBuffer;
+				while (getline(ss, stringBuffer, ',')) {
+					odomString.push_back(stringBuffer);
+				}
 
-			vector<string> odomString;
-			string stringBuffer;
-			while (getline(ss, stringBuffer, ',')) {
-				odomString.push_back(stringBuffer);
+				OdomDouble odomDouble(stod(odomString.at(0)), stod(odomString.at(1)), stod(odomString.at(2)));
+				global_path_.push_back(odomDouble);
 			}
 
-			OdomDouble odomDouble(stod(odomString.at(0)), stod(odomString.at(1)), stod(odomString.at(2)));
-			global_path_.push_back(odomDouble);
+			file.close();
 		}
-
-		file.close();
 	}
 }
 
@@ -107,7 +122,7 @@ void PathFollower::visualize(vector<OdomDouble> path){
 	points.scale.x = 0.1; 
 	points.scale.y = 0.1;
 	points.color.a = 1.0;
-	points.color.r = 1.0f;
+	points.color.b = 1.0f;
 
 	geometry_msgs::Point p;
 

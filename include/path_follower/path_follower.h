@@ -40,6 +40,7 @@ private:
     //flag
     int path_flag = 0;
 	double pre_steer_ = 0.0;
+    int obs_detect_flag_ = 0;
 
     //messages
     ackermann_msgs::AckermannDriveStamped ackerData_;
