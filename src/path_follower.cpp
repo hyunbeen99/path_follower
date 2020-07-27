@@ -2,7 +2,6 @@
 
 void PathFollower::initSetup(){
 	sub_o_ = nh_.subscribe("/odom", 1 , &PathFollower::odomCallback, this);
-//	sub_p_ = nh_.subscribe("/path", 1 , &PathFollower::followCallback, this);
 	pub_ = nh_.advertise<ackermann_msgs::AckermannDriveStamped>("/ctrl_cmd",10);
     marker_pub_ = nh_.advertise<visualization_msgs::Marker>("/visualization_marker", 10);
 
@@ -23,6 +22,10 @@ void PathFollower::odomCallback(const nav_msgs::Odometry::ConstPtr &odomsg){
 		odomsg->pose.pose.orientation.w); 
 	tf::Matrix3x3 m(q);
 	m.getRPY(roll, pitch, yaw);
+
+	if (!start_flag_) {
+		start_flag_ = true;
+	}
 }
 
 // follow final path
@@ -31,33 +34,42 @@ void PathFollower::follow(){
 	nh_.getParam("/isGlobalPathChanged", isChanged);
 
 	if (isChanged) {
+		
 		loadGlobalPath();
 		nh_.setParam("/isGlobalPathChanged", false);
+	}
+
+	if (temp_flag < 3) {
+		cout << endl;
+		cout << "(lx, ly) = " << lx << ly << endl;
+		cout << "###############################" << endl;
+		cout << "path flag: " << path_flag << endl;
+		cout << "size : " << global_path_.size() << endl;
 	}
 	
 	// find closest point in global path
 	double dist = 100.0;
 	for (int i=path_flag;i<global_path_.size();i++) {
 		double dist_l = sqrt(pow(global_path_.at(i).getX() - lx, 2) + pow(global_path_.at(i).getY() - ly, 2));
+
+		if (temp_flag < 3) {
+			cout << "i -> " << i << endl;
+			cout << "dist -> " << dist_l << endl;
+		}
+
 		if (dist > dist_l) {
 			dist = dist_l;
 			path_flag = i;
 		}
 	}
 
+	if (temp_flag < 3) {
+		cout << "###############################" << endl;
+	}
 
-	cout << "0.x -> " << global_path_.at(0).getX() << endl;
-	cout << "0.y -> " << global_path_.at(0).getY() << endl;
-	cout << "path_flag point.x -> " << global_path_.at(path_flag).getX() << endl;
-	cout << "path_flag point.y -> " << global_path_.at(path_flag).getY() << endl;
-	cout << "last.x -> " << global_path_.back().getX() << endl;
-	cout << "last.y -> " << global_path_.back().getY() << endl;
-	cout << endl;
+	temp_flag++;
 
-	cout << "path flag: " << path_flag << endl;
-	cout << "size : " << global_path_.size() << endl;
-
-	if (path_flag != global_path_.size()-1) {
+	if (path_flag < global_path_.size()-1) { //not last index
 		ackerData_.drive.steering_angle = calcSteer(global_path_.at(path_flag+1).getX(), global_path_.at(path_flag+1).getY());
 		pre_steer_ = ackerData_.drive.steering_angle;
 		ackerData_.drive.speed = 2;
@@ -71,41 +83,38 @@ void PathFollower::follow(){
 }
 
 void PathFollower::loadGlobalPath() {
-	if(obs_detect_flag_ < 1) {
-		bool isChanged;
-		nh_.getParam("/isGlobalPathChanged", isChanged);
+	bool isChanged;
+	nh_.getParam("/isGlobalPathChanged", isChanged);
 
-		ifstream file;
-		global_path_.clear();
+	ifstream file;
+	global_path_.clear();
 
-		if (!isChanged) { // use initial global path
-			file.open(GLOBAL_PATH_FILE);
-		} else { // obstacle detected from planner -> use changed global path
-			cout << "path changed!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << endl;
-			file.open(NEW_GLOBAL_PATH_FILE);
-			obs_detect_flag_++;
-		}
-		
-		if (file.is_open()) {
+	if (!isChanged) { // use initial global path
+		file.open(GLOBAL_PATH_FILE);
+	} else { // obstacle detected from planner -> use changed global path
+		cout << "path changed!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << endl;
+		file.open(NEW_GLOBAL_PATH_FILE);
+	}
+	
+	if (file.is_open()) {
 
-			string line;
+		string line;
 
-			while (getline(file, line)) {
+		while (getline(file, line)) {
 
-				istringstream ss(line);
+			istringstream ss(line);
 
-				vector<string> odomString;
-				string stringBuffer;
-				while (getline(ss, stringBuffer, ',')) {
-					odomString.push_back(stringBuffer);
-				}
-
-				OdomDouble odomDouble(stod(odomString.at(0)), stod(odomString.at(1)), stod(odomString.at(2)));
-				global_path_.push_back(odomDouble);
+			vector<string> odomString;
+			string stringBuffer;
+			while (getline(ss, stringBuffer, ',')) {
+				odomString.push_back(stringBuffer);
 			}
 
-			file.close();
+			OdomDouble odomDouble(stod(odomString.at(0)), stod(odomString.at(1)), stod(odomString.at(2)));
+			global_path_.push_back(odomDouble);
 		}
+
+		file.close();
 	}
 }
 
@@ -207,8 +216,11 @@ int main(int argc, char **argv){
 
 	// warp
 	while(ros::ok()) {
-		pf.follow();
 		ros::spinOnce();
+
+		if (pf.start_flag_) {
+			pf.follow();
+		}
 	}
 
 	return 0;
