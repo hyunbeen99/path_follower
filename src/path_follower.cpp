@@ -39,35 +39,22 @@ void PathFollower::follow(){
 		nh_.setParam("/isGlobalPathChanged", false);
 	}
 
-	if (temp_flag < 3) {
-		cout << endl;
-		cout << "(lx, ly) = " << lx << ly << endl;
-		cout << "###############################" << endl;
-		cout << "path flag: " << path_flag << endl;
-		cout << "size : " << global_path_.size() << endl;
-	}
+	cout << endl;
+	cout << "###############################" << endl;
+	cout << "(lx, ly) = " << lx << " , " << ly << endl;
+	cout << "path flag: " << path_flag << endl;
+	cout << "###############################" << endl;
 	
 	// find closest point in global path
 	double dist = 100.0;
 	for (int i=path_flag;i<global_path_.size();i++) {
 		double dist_l = sqrt(pow(global_path_.at(i).getX() - lx, 2) + pow(global_path_.at(i).getY() - ly, 2));
 
-		if (temp_flag < 3) {
-			cout << "i -> " << i << endl;
-			cout << "dist -> " << dist_l << endl;
-		}
-
 		if (dist > dist_l) {
 			dist = dist_l;
 			path_flag = i;
 		}
 	}
-
-	if (temp_flag < 3) {
-		cout << "###############################" << endl;
-	}
-
-	temp_flag++;
 
 	if (path_flag < global_path_.size()-1) { //not last index
 		ackerData_.drive.steering_angle = calcSteer(global_path_.at(path_flag+1).getX(), global_path_.at(path_flag+1).getY());
