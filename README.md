@@ -1,4 +1,6 @@
-## Path_follower for Hdl graph slam 
+# Path_follower for Hdl graph slam 
+
+## Connected with 
 
 [planner](https://github.com/hyunbeen99/planner)  
 
@@ -7,6 +9,9 @@
 [hdl_localization](https://github.com/hyunbeen99/kuuve_localization)  
 
 [hdl_graph_slam](https://github.com/hyunbeen99/kuuve_slam)  
+
+## Refer to
+[Navigation](http://wiki.ros.org/navigation)  
 
 
 ![파일_001](https://user-images.githubusercontent.com/54614865/103155118-fa723580-47df-11eb-8e42-84dd4e777321.png)
